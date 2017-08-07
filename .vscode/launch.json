@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+    {
+            "name": "xds-gdb help",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceRoot}",
+            "env": {
+                "GOPATH": "${workspaceRoot}/../../../..:${env:GOPATH}",
+                "XDS_LOGLEVEL": "debug"
+            },
+            "args": ["-tt", "--help", "--version"],
+            "showLog": false
+        },
+        {
+            "name": "xds-gdb",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceRoot}",
+            "env": {
+                "GOPATH": "${workspaceRoot}/../../../..:${env:GOPATH}"
+            },
+            "args": ["-x", "/tmp/gdbconf.ini", "-nx"],
+            "showLog": false
+        },
+          {
+            "name": "xds-gdb TTY",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceRoot}",
+            "env": {
+                "GOPATH": "${workspaceRoot}/../../../..:${env:GOPATH}"
+            },
+            "args": ["-tty", "/dev/pts27", "-nx", "-x", "${workspaceRoot}/__config/gdb-on-m3ulcb_debug_pi.ini"],
+            "showLog": false
+        },
+        {
+            "name": "xds-gdb native",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceRoot}",
+            "env": {
+                "GOPATH": "${workspaceRoot}/../../../..:${env:GOPATH}",
+                "XDS_LOGLEVEL": "debug"
+            },
+            "args": ["-x", "${workspaceRoot}/__config/gdb-on-localhost_debug_pi.ini"],
+            "showLog": false
+        }
+
+    ]
+}
