@@ -9,12 +9,15 @@ import:
 - package: github.com/Sirupsen/logrus
   version: ^0.11.5
 - package: github.com/zhouhui8915/go-socket.io-client
+  version: master
 - package: github.com/iotbzh/xds-server
+  version: wip
   subpackages:
   - apiv1
   - crosssdk
   - xdsconfig
 - package: github.com/iotbzh/xds-common
+  version: master
   subpackages:
   - golib/common
 - package: github.com/joho/godotenv
