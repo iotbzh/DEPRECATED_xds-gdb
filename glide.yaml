@@ -17,7 +17,7 @@ import:
   - crosssdk
   - xdsconfig
 - package: github.com/iotbzh/xds-common
-  version: master
+  version: 363bac39b844afa
   subpackages:
   - golib/common
 - package: github.com/joho/godotenv
