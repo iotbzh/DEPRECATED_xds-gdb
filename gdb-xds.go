@@ -44,7 +44,7 @@ type GdbXds struct {
 func NewGdbXds(log *logrus.Logger, args []string, env []string) *GdbXds {
 	return &GdbXds{
 		log:     log,
-		ccmd:    "$GDB", // var set by environment-setup-xxx script
+		ccmd:    "exec $GDB", // var set by environment-setup-xxx script
 		aargs:   args,
 		eenv:    env,
 		httpCli: nil,
