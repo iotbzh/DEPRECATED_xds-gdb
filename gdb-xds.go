@@ -12,7 +12,7 @@ import (
 	common "github.com/iotbzh/xds-common/golib"
 	"github.com/iotbzh/xds-server/lib/apiv1"
 	"github.com/iotbzh/xds-server/lib/crosssdk"
-	"github.com/iotbzh/xds-server/lib/xdsconfig"
+	"github.com/iotbzh/xds-server/lib/folder"
 	sio_client "github.com/zhouhui8915/go-socket.io-client"
 )
 
@@ -269,7 +269,7 @@ func (g *GdbXds) SendSignal(sig os.Signal) error {
 
 func getProjectsList(c *common.HTTPClient, log *logrus.Logger, prjData []byte) (int, error) {
 
-	folders := xdsconfig.FoldersConfig{}
+	folders := []folder.FolderConfig{}
 	errMar := json.Unmarshal(prjData, &folders)
 	msg := ""
 	if errMar == nil {

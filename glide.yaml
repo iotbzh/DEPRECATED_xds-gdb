@@ -11,13 +11,13 @@ import:
 - package: github.com/zhouhui8915/go-socket.io-client
   version: master
 - package: github.com/iotbzh/xds-server
-  version: wip
+  version: 6691c9f7c53d
   subpackages:
   - apiv1
   - crosssdk
   - xdsconfig
 - package: github.com/iotbzh/xds-common
-  version: 363bac39b844afa
+  version: 363bac39b844
   subpackages:
   - golib/common
 - package: github.com/joho/godotenv
