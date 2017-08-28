@@ -164,7 +164,7 @@ func main() {
 	for idx, a := range os.Args[1:] {
 		// Specific case to print help or version of xds-gdb
 		switch a {
-		case "--help", "-h", "--version", "-v":
+		case "--help", "-h", "--version", "-v", "--list", "-ls":
 			args[1] = a
 			goto endloop
 		case "--":
@@ -205,6 +205,7 @@ endloop:
 	// Source config env file
 	// (we cannot use confFile var because env variables setting is just after)
 	envMap, confFile, err := loadConfigEnvFile(os.Getenv("XDS_CONFIG"), gdbCmdFile)
+	log.Infof("Load env config: envMap=%v, confFile=%v, err=%v", envMap, confFile, err)
 
 	// Only rise an error when args is not set (IOW when --help or --version is not set)
 	if len(args) == 1 {
@@ -244,6 +245,12 @@ endloop:
 		var err error
 		curDir, _ := os.Getwd()
 
+		// Build env variables
+		env := []string{}
+		for k, v := range envMap {
+			env = append(env, k+"="+v)
+		}
+
 		// Now set logger level and log file to correct/env var settings
 		if log.Level, err = logrus.ParseLevel(logLevel); err != nil {
 			msg := fmt.Sprintf("Invalid log level : \"%v\"\n", logLevel)
@@ -261,12 +268,6 @@ endloop:
 			}
 			defer fdL.Close()
 			log.Out = fdL
-		}
-
-		// Build env variables
-		env := []string{}
-		for k, v := range envMap {
-			env = append(env, k+"="+v)
 		}
 
 		// Create cross or native gdb interface
@@ -488,7 +489,7 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 			defer os.Remove(confFile)
 		}
 		if err != nil {
-			return envMap, confFile, fmt.Errorf(err.Error())
+			log.Infof("Extraction from gdbCmdFile failed: %v", err.Error())
 		}
 	}
 	// 2- search xds-gdb.env file in various locations
@@ -516,7 +517,6 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 		return envMap, "", nil
 	}
 
-	log.Infof("Use conf file: %s", confFile)
 	if !common.Exists(confFile) {
 		return envMap, confFile, fmt.Errorf("Error no env config file not found")
 	}
@@ -526,6 +526,7 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 	if envMap, err = godotenv.Read(confFile); err != nil {
 		return envMap, confFile, fmt.Errorf("Error reading env config file " + confFile)
 	}
+
 	return envMap, confFile, nil
 }
 
