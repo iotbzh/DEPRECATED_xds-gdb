@@ -499,9 +499,9 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 			xdsEnvFile := "xds-gdb.env"
 			for _, d := range []string{
 				path.Join(curDir),
-				path.Join(curDir, "..", ".."),
-				path.Join(curDir, "../../target"),
-				path.Join(u.HomeDir, ".xds"),
+				path.Join(curDir, ".."),
+				path.Join(curDir, "target"),
+				path.Join(u.HomeDir, ".config", "xds"),
 			} {
 				confFile = path.Join(d, xdsEnvFile)
 				log.Infof("Search config in %s", confFile)
