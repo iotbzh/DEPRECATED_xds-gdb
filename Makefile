@@ -1,7 +1,7 @@
 # Makefile used to build xds-gdb commands
 
 # Application Version
-VERSION := 0.0.1
+VERSION := 0.1.0
 
 
 # Retrieve git tag/commit to set sub-version string
@@ -58,7 +58,6 @@ build: $(TARGET)
 xds-gdb: vendor
 	@echo "### Build $@ (version $(VERSION), subversion $(SUB_VERSION)) - $(BUILD_MODE)";
 	@cd $(ROOT_SRCDIR); $(BUILD_ENV_FLAGS) go build $(VERBOSE_$(V)) -i -o $(BINDIR)/$@$(EXT) -ldflags "$(GORELEASE) -X main.AppVersion=$(VERSION) -X main.AppSubVersion=$(SUB_VERSION)" .
-	@([ "$(HOST_GOOS)" = "linux" ] && { cd $(BINDIR) && ln -sf $@ $(subst xds-,,$@); } || { true; } )
 
 test: tools/glide
 	go test --race $(shell ./tools/glide novendor)
