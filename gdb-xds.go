@@ -32,6 +32,8 @@ type GdbXds struct {
 	httpCli *common.HTTPClient
 	ioSock  *sio_client.Client
 
+	folders []folder.FolderConfig
+
 	// callbacks
 	cbOnError      func(error)
 	cbOnDisconnect func(error)
@@ -99,10 +101,15 @@ func (g *GdbXds) Init() (int, error) {
 		return int(syscallEBADE), err
 	}
 	g.log.Infof("Result of /folders: %v", string(data[:]))
+	g.folders = []folder.FolderConfig{}
+	errMar := json.Unmarshal(data, &g.folders)
+	if errMar != nil {
+		g.log.Errorf("Cannot decode folders configuration: %s", errMar.Error())
+	}
 
 	// Check mandatory args
 	if g.prjID == "" || g.listPrj {
-		return getProjectsList(c, g.log, data)
+		return g.printProjectsList()
 	}
 
 	// Create io Websocket client
@@ -168,6 +175,31 @@ func (g *GdbXds) Close() error {
 func (g *GdbXds) Start(inferiorTTY bool) (int, error) {
 	var body []byte
 	var err error
+	var folder *folder.FolderConfig
+
+	// Retrieve the folder definition
+	for _, f := range g.folders {
+		if f.ID == g.prjID {
+			folder = &f
+			break
+		}
+	}
+
+	// Auto setup rPath if needed
+	if g.rPath == "" && folder != nil {
+		cwd, err := os.Getwd()
+		if err == nil {
+			fldRp := folder.ClientPath
+			if !strings.HasPrefix(fldRp, "/") {
+				fldRp = "/" + fldRp
+			}
+			log.Debugf("Try to auto-setup rPath: cwd=%s ; ClientPath=%s", cwd, fldRp)
+			if sp := strings.SplitAfter(cwd, fldRp); len(sp) == 2 {
+				g.rPath = strings.Trim(sp[1], "/")
+				g.log.Debugf("Auto-setup rPath to: '%s'", g.rPath)
+			}
+		}
+	}
 
 	// Enable workaround about inferior output with gdbserver connection
 	// except if XDS_GDBSERVER_OUTPUT_NOFIX is defined
@@ -267,15 +299,12 @@ func (g *GdbXds) SendSignal(sig os.Signal) error {
 
 //***** Private functions *****
 
-func getProjectsList(c *common.HTTPClient, log *logrus.Logger, prjData []byte) (int, error) {
-
-	folders := []folder.FolderConfig{}
-	errMar := json.Unmarshal(prjData, &folders)
+func (g *GdbXds) printProjectsList() (int, error) {
 	msg := ""
-	if errMar == nil {
+	if len(g.folders) > 0 {
 		msg += "List of existing projects (use: export XDS_PROJECT_ID=<< ID >>): \n"
 		msg += "  ID\t\t\t\t | Label"
-		for _, f := range folders {
+		for _, f := range g.folders {
 			msg += fmt.Sprintf("\n  %s\t | %s", f.ID, f.Label)
 			if f.DefaultSdk != "" {
 				msg += fmt.Sprintf("\t(default SDK: %s)", f.DefaultSdk)
@@ -285,13 +314,13 @@ func getProjectsList(c *common.HTTPClient, log *logrus.Logger, prjData []byte) (
 	}
 
 	var data []byte
-	if err := c.HTTPGet("/sdks", &data); err != nil {
+	if err := g.httpCli.HTTPGet("/sdks", &data); err != nil {
 		return int(syscallEBADE), err
 	}
-	log.Infof("Result of /sdks: %v", string(data[:]))
+	g.log.Infof("Result of /sdks: %v", string(data[:]))
 
 	sdks := []crosssdk.SDK{}
-	errMar = json.Unmarshal(data, &sdks)
+	errMar := json.Unmarshal(data, &sdks)
 	if errMar == nil {
 		msg += "\nList of installed cross SDKs (use: export XDS_SDK_ID=<< ID >>): \n"
 		msg += "  ID\t\t\t\t\t | NAME\n"
@@ -300,11 +329,11 @@ func getProjectsList(c *common.HTTPClient, log *logrus.Logger, prjData []byte) (
 		}
 	}
 
-	if len(folders) > 0 && len(sdks) > 0 {
+	if len(g.folders) > 0 && len(sdks) > 0 {
 		msg += fmt.Sprintf("\n")
 		msg += fmt.Sprintf("For example: \n")
 		msg += fmt.Sprintf("  XDS_PROJECT_ID=%q XDS_SDK_ID=%q  %s -x myGdbConf.ini\n",
-			folders[0].ID, sdks[0].ID, AppName)
+			g.folders[0].ID, sdks[0].ID, AppName)
 	}
 
 	return 0, fmt.Errorf(msg)
