@@ -190,8 +190,12 @@ endloop:
 	// Source config env file
 	// (we cannot use confFile var because env variables setting is just after)
 	envMap, confFile, err := loadConfigEnvFile(os.Getenv("XDS_CONFIG"), gdbCmdFile)
-	if err != nil {
-		exitError(syscall.ENOENT, err.Error())
+
+	// Only rise an error when args is not set (IOW when --help or --version is not set)
+	if len(args) == 1 {
+		if err != nil {
+			exitError(syscall.ENOENT, err.Error())
+		}
 	}
 
 	// Managed env vars and create help
