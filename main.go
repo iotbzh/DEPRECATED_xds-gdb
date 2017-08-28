@@ -39,7 +39,7 @@ var AppSubVersion = "unknown-dev"
 
 // Create logger
 var log = logrus.New()
-var earlyLog = []string{}
+var logFileInitial = "/tmp/xds-gdb.log"
 
 // Application details
 const (
@@ -64,6 +64,8 @@ type EnvVar struct {
 func exitError(code syscall.Errno, f string, a ...interface{}) {
 	err := fmt.Sprintf(f, a...)
 	fmt.Fprintf(os.Stderr, err+"\n")
+	log.Debugf("Exit: code=%v, err=%s", code, err)
+
 	os.Exit(int(code))
 }
 
@@ -72,6 +74,18 @@ func main() {
 	var uri, prjID, rPath, logLevel, logFile, sdkid, confFile, gdbNative string
 	var listProject bool
 	var err error
+
+	// Init Logger and set temporary file and level for the 1st part
+	// IOW while XDS_LOGLEVEL and XDS_LOGFILE options are not parsed
+	logFile = logFileInitial
+	fdL, err := os.OpenFile(logFileInitial, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+	if err != nil {
+		msgErr := fmt.Sprintf("Cannot create log file %s", logFileInitial)
+		exitError(syscall.EPERM, msgErr)
+	}
+	log.Formatter = &logrus.TextFormatter{}
+	log.Out = fdL
+	log.Level = logrus.DebugLevel
 
 	uri = "localhost:8000"
 	logLevel = defaultLogLevel
@@ -140,6 +154,7 @@ func main() {
 	}
 
 	// Process gdb arguments
+	log.Debugf("xds-gdb started with args: %v", os.Args)
 	args := make([]string, len(os.Args))
 	args[0] = os.Args[0]
 	gdbArgs := make([]string, len(os.Args))
@@ -229,23 +244,24 @@ endloop:
 		var err error
 		curDir, _ := os.Getwd()
 
-		// Set logger level, formatter and log file
+		// Now set logger level and log file to correct/env var settings
 		if log.Level, err = logrus.ParseLevel(logLevel); err != nil {
 			msg := fmt.Sprintf("Invalid log level : \"%v\"\n", logLevel)
 			return cli.NewExitError(msg, int(syscall.EINVAL))
 		}
-		log.Formatter = &logrus.TextFormatter{}
+		log.Infof("Switch log level to %s", logLevel)
 
-		// Always log into a file
-		if logFile == "" {
-			logFile = "/tmp/xds-gdb.log"
+		if logFile != logFileInitial {
+			log.Infof("Switch logging to log file %s", logFile)
+
+			fdL, err := os.OpenFile(logFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+			if err != nil {
+				msgErr := fmt.Sprintf("Cannot create log file %s", logFile)
+				return cli.NewExitError(msgErr, int(syscall.EPERM))
+			}
+			defer fdL.Close()
+			log.Out = fdL
 		}
-		fdL, err := os.OpenFile(logFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
-		if err != nil {
-			msgErr := fmt.Sprintf("Cannot create log file %s", logFile)
-			return cli.NewExitError(msgErr, int(syscall.EPERM))
-		}
-		log.Out = fdL
 
 		// Build env variables
 		env := []string{}
@@ -264,11 +280,6 @@ endloop:
 			gdb.SetConfig("sdkID", sdkid)
 			gdb.SetConfig("rPath", rPath)
 			gdb.SetConfig("listProject", listProject)
-		}
-
-		// Log early print
-		for _, msg := range earlyLog {
-			log.Debugf(msg)
 		}
 
 		// Log useful info
@@ -471,7 +482,7 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 	// 1- if no confFile set, use setting from gdb command file is option
 	//    --command/-x is set
 	if confFile == "" && gdbCmdFile != "" {
-		logEarly("Try extract config from gdbCmdFile: %s", gdbCmdFile)
+		log.Infof("Try extract config from gdbCmdFile: %s", gdbCmdFile)
 		confFile, err = extractEnvFromCmdFile(gdbCmdFile)
 		if confFile != "" {
 			defer os.Remove(confFile)
@@ -492,7 +503,7 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 				path.Join(u.HomeDir, ".xds"),
 			} {
 				confFile = path.Join(d, xdsEnvFile)
-				logEarly("Search config in %s", confFile)
+				log.Infof("Search config in %s", confFile)
 				if common.Exists(confFile) {
 					break
 				}
@@ -501,9 +512,11 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 	}
 
 	if confFile == "" {
+		log.Infof("NO valid conf file found!")
 		return envMap, "", nil
 	}
 
+	log.Infof("Use conf file: %s", confFile)
 	if !common.Exists(confFile) {
 		return envMap, confFile, fmt.Errorf("Error no env config file not found")
 	}
@@ -575,8 +588,4 @@ func extractEnvFromCmdFile(cmdFile string) (string, error) {
 	}
 
 	return envFileName, nil
-}
-
-func logEarly(format string, a ...interface{}) {
-	earlyLog = append(earlyLog, fmt.Sprintf(format, a...))
 }
