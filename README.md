@@ -3,8 +3,7 @@ xds-gdb: wrapper on gdb for XDS
 
 `xds-gdb` is a wrapper on gdb debugger for X(cross) Development System.
 
-This tool allows you to debug an application built with an xds-server
-(see [xds-server on github](https://github.com/iotbzh/xds-server)) without the
+This tool allows you to debug an application built with an xds-server without the
 need to install gdb or any cross tool.
 
 Two debugging models are supported:
@@ -156,7 +155,7 @@ To enable native debugging mode, you need to define `XDS_NATIVE_GDB` variable.
 
 ### Netbeans
 
-**Netbeans 8.x :**  
+__Netbeans 8.x :__
 Open menu Tools -> Options  
 Then open C/C++ tab, in "Build Tools" sub-tab, click on "Add" button:
 ![Add new tool panel](/docs/images/nb_newtool.jpeg)
