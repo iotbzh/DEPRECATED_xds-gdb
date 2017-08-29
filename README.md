@@ -164,11 +164,11 @@ To enable native debugging mode, you need to define `XDS_NATIVE_GDB` variable.
 __Netbeans 8.x :__
 Open menu Tools -> Options  
 Then open C/C++ tab, in "Build Tools" sub-tab, click on "Add" button:
-![Add new tool panel](/docs/images/nb_newtool.jpg)
+![Add new tool panel](./docs/images/nb_newtool.jpg)
 
 Then, you should set *Debugger Command* to point to xds-gdb
 
-![Add new tool panel](/docs/images/nb_xds_options.jpg)
+![Add new tool panel](./docs/images/nb_xds_options.jpg)
 
 ### Others IDE
 
