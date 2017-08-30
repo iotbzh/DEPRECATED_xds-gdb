@@ -123,7 +123,7 @@ func main() {
 		},
 		EnvVar{
 			Name:        "XDS_LOGFILE",
-			Usage:       "logging file",
+			Usage:       "logging file (default: " + logFileInitial + ")",
 			Destination: &logFile,
 		},
 		EnvVar{
@@ -524,9 +524,10 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
 				path.Join(curDir, "target"),
 				path.Join(u.HomeDir, ".config", "xds"),
 			} {
-				confFile = path.Join(d, xdsEnvFile)
-				log.Infof("Search config in %s", confFile)
-				if common.Exists(confFile) {
+				cf := path.Join(d, xdsEnvFile)
+				log.Infof("Search config in %s", cf)
+				if common.Exists(cf) {
+					confFile = cf
 					break
 				}
 			}
