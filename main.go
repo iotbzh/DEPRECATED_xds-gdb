@@ -409,6 +409,10 @@ endloop:
 			paranoia := 600
 			reader := bufio.NewReader(os.Stdin)
 
+			// Enable workaround to correctly close connection
+			// except if XDS_GDBSERVER_EXIT_NOFIX is defined
+			_, gdbExitNoFix := os.LookupEnv("XDS_GDBSERVER_EXIT_NOFIX")
+
 			for {
 				sc := bufio.NewScanner(reader)
 				for sc.Scan() {
@@ -421,6 +425,16 @@ endloop:
 							log.Debugf("OVERWRITE %s -> %s", key, value)
 						}
 					}
+
+					// Send SIGINT to stop debugged process execution before sending -gdb-exit command
+					if !gdbExitNoFix && strings.Contains(command, "-gdb-exit") {
+						log.Infof("Detection of -gdb-exit, exiting...")
+						if err := gdb.SendSignal(syscall.SIGINT); err != nil {
+							log.Errorf("Error while sending signal SIGINT : %s", err.Error())
+						}
+						time.Sleep(time.Millisecond * 200)
+					}
+
 					gdb.Write(command + "\n")
 					log.Debugf("Send: <%v>", command)
 				}
