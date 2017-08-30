@@ -345,7 +345,7 @@ endloop:
 
 		// Handle client tty / pts
 		if clientPty != "" {
-			log.Infoln("Client tty detected: %v\n", clientPty)
+			log.Infoln("Client tty detected: %v", clientPty)
 
 			cpFd, err := os.OpenFile(clientPty, os.O_RDWR, 0)
 			if err != nil {
@@ -446,8 +446,15 @@ endloop:
 		go func() {
 			for {
 				sig := <-sigs
+
+				// FIXME: skip Window Changed signal for now
+				if sig == syscall.SIGWINCH {
+					log.Debugf("SKIP signal Window Changed")
+					return
+				}
+
 				if err := gdb.SendSignal(sig); err != nil {
-					log.Errorf("Error while sending signal: %s", err.Error())
+					log.Errorf("Error while sending signal %v : %s", sig, err.Error())
 				}
 			}
 		}()
