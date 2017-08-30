@@ -76,6 +76,9 @@ func (g *GdbXds) SetConfig(name string, value interface{}) error {
 // Init initializes gdb XDS
 func (g *GdbXds) Init() (int, error) {
 
+	// Reset command ID (also used to enable sending of signals)
+	g.cmdID = ""
+
 	// Define HTTP and WS url
 	baseURL := g.uri
 	if !strings.HasPrefix(g.uri, "http://") {
@@ -167,6 +170,7 @@ func (g *GdbXds) Close() error {
 	g.cbOnExit = nil
 	g.cbRead = nil
 	g.cbInferiorRead = nil
+	g.cmdID = ""
 
 	return nil
 }
@@ -285,6 +289,10 @@ func (g *GdbXds) Write(args ...interface{}) error {
 
 // SendSignal is used to send a signal to remote process/gdb
 func (g *GdbXds) SendSignal(sig os.Signal) error {
+	if g.cmdID == "" {
+		return fmt.Errorf("cmdID not set")
+	}
+
 	var body []byte
 	body, err := json.Marshal(apiv1.ExecSignalArgs{
 		CmdID:  g.cmdID,

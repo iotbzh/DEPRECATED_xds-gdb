@@ -94,6 +94,7 @@ package-all:
 	@echo " WARNING: build on Windows not supported for now."
 	@echo "# Build darwin amd64..."
 	GOOS=darwin GOARCH=amd64 RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile package
+	make -f $(ROOT_SRCDIR)/Makefile clean
 
 vendor: tools/glide glide.yaml
 	./tools/glide install --strip-vendor

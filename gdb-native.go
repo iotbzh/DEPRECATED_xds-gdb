@@ -151,6 +151,9 @@ func (g *GdbNative) Write(args ...interface{}) error {
 
 // SendSignal is used to send a signal to remote process/gdb
 func (g *GdbNative) SendSignal(sig os.Signal) error {
+	if g.exeCmd == nil {
+		return fmt.Errorf("exeCmd not initialized")
+	}
 	return g.exeCmd.Process.Signal(sig)
 }
 
