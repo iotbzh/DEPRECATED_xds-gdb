@@ -22,6 +22,7 @@ endif
 HOST_GOOS=$(shell go env GOOS)
 HOST_GOARCH=$(shell go env GOARCH)
 ARCH=$(HOST_GOOS)-$(HOST_GOARCH)
+REPOPATH=github.com/iotbzh/xds-gdb
 
 EXT=
 ifeq ($(HOST_GOOS), windows)
@@ -51,12 +52,12 @@ else
 	BUILD_MODE="Release mode"
 endif
 
-REPOPATH=github.com/iotbzh/xds-gdb
-TARGET := xds-gdb
 
-build: $(TARGET)
+.PHONY: all
+all: build
 
-xds-gdb: vendor
+.PHONY: build
+build: vendor
 	@echo "### Build $@ (version $(VERSION), subversion $(SUB_VERSION)) - $(BUILD_MODE)";
 	@cd $(ROOT_SRCDIR); $(BUILD_ENV_FLAGS) go build $(VERBOSE_$(V)) -i -o $(BINDIR)/$@$(EXT) -ldflags "$(GORELEASE) -X main.AppVersion=$(VERSION) -X main.AppSubVersion=$(SUB_VERSION)" .
 
@@ -111,7 +112,7 @@ tools/glide:
 
 help:
 	@echo "Main supported rules:"
-	@echo "  build               (default)"
+	@echo "  all               (default)"
 	@echo "  release"
 	@echo "  clean"
 	@echo "  package"
