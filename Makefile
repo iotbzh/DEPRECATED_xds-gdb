@@ -58,8 +58,8 @@ all: build
 
 .PHONY: build
 build: vendor
-	@echo "### Build $@ (version $(VERSION), subversion $(SUB_VERSION)) - $(BUILD_MODE)";
-	@cd $(ROOT_SRCDIR); $(BUILD_ENV_FLAGS) go build $(VERBOSE_$(V)) -i -o $(BINDIR)/$@$(EXT) -ldflags "$(GORELEASE) -X main.AppVersion=$(VERSION) -X main.AppSubVersion=$(SUB_VERSION)" .
+	@echo "### Build xds-gdb (version $(VERSION), subversion $(SUB_VERSION)) - $(BUILD_MODE)";
+	@cd $(ROOT_SRCDIR); $(BUILD_ENV_FLAGS) go build $(VERBOSE_$(V)) -i -o $(BINDIR)/xds-gdb$(EXT) -ldflags "$(GORELEASE) -X main.AppVersion=$(VERSION) -X main.AppSubVersion=$(SUB_VERSION)" .
 
 test: tools/glide
 	go test --race $(shell ./tools/glide novendor)
