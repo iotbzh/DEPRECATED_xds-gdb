@@ -35,3 +35,7 @@ func tcgetattr(fd uintptr, termios *syscall.Termios) error {
 	}
 	return nil
 }
+
+func isIgnoredSignal(sig os.Signal) bool {
+	return (sig == syscall.SIGWINCH)
+}

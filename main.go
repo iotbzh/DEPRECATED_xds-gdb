@@ -461,9 +461,7 @@ endloop:
 			for {
 				sig := <-sigs
 
-				// FIXME: skip Window Changed signal for now
-				if sig == syscall.SIGWINCH {
-					log.Debugf("SKIP signal Window Changed")
+				if isIgnoredSignal(sig) {
 					return
 				}
 

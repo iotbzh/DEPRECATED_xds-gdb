@@ -2,7 +2,7 @@
 
 # Application Version
 VERSION := 0.1.0
-
+TARGET=xds-gdb
 
 # Retrieve git tag/commit to set sub-version string
 ifeq ($(origin SUB_VERSION), undefined)
@@ -22,7 +22,7 @@ endif
 HOST_GOOS=$(shell go env GOOS)
 HOST_GOARCH=$(shell go env GOARCH)
 ARCH=$(HOST_GOOS)-$(HOST_GOARCH)
-REPOPATH=github.com/iotbzh/xds-gdb
+REPOPATH=github.com/iotbzh/$(TARGET)
 
 EXT=
 ifeq ($(HOST_GOOS), windows)
@@ -44,22 +44,31 @@ VERBOSE_2 := -v -x
 
 # Release or Debug mode
 ifeq ($(filter 1,$(RELEASE) $(REL)),)
-	GORELEASE=
+	GO_LDFLAGS=
+	# disable compiler optimizations and inlining
+	GO_GCFLAGS=-N -l
 	BUILD_MODE="Debug mode"
 else
 	# optimized code without debug info
-	GORELEASE= -s -w
+	GO_LDFLAGS=-s -w
+	GO_GCFLAGS=
 	BUILD_MODE="Release mode"
 endif
 
 
+ifeq ($(SUB_VERSION), )
+	PACKAGE_ZIPFILE := $(TARGET)_$(ARCH)-v$(VERSION).zip
+else
+	PACKAGE_ZIPFILE := $(TARGET)_$(ARCH)-v$(VERSION)_$(SUB_VERSION).zip
+endif
+
 .PHONY: all
-all: build
+all: vendor build
 
 .PHONY: build
-build: vendor
-	@echo "### Build xds-gdb (version $(VERSION), subversion $(SUB_VERSION)) - $(BUILD_MODE)";
-	@cd $(ROOT_SRCDIR); $(BUILD_ENV_FLAGS) go build $(VERBOSE_$(V)) -i -o $(BINDIR)/xds-gdb$(EXT) -ldflags "$(GORELEASE) -X main.AppVersion=$(VERSION) -X main.AppSubVersion=$(SUB_VERSION)" .
+build:
+	@echo "### Build $(TARGET) (version $(VERSION), subversion $(SUB_VERSION)) - $(BUILD_MODE)";
+	@cd $(ROOT_SRCDIR); $(BUILD_ENV_FLAGS) go build $(VERBOSE_$(V)) -i -o $(BINDIR)/$(TARGET)$(EXT) -ldflags "$(GO_LDFLAGS) -X main.AppVersion=$(VERSION) -X main.AppSubVersion=$(SUB_VERSION)" -gcflags "$(GO_GCFLAGS)" .
 
 test: tools/glide
 	go test --race $(shell ./tools/glide novendor)
@@ -81,18 +90,18 @@ distclean: clean
 release:
 	RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile clean build
 
-package: clean build
-	@mkdir -p $(PACKAGE_DIR)/xds-gdb
-	@cp -a $(BINDIR)/*gdb$(EXT) $(PACKAGE_DIR)/xds-gdb
-	@cd $(PACKAGE_DIR) && zip  --symlinks -r $(ROOT_SRCDIR)/xds-gdb_$(ARCH)-v$(VERSION)_$(SUB_VERSION).zip ./xds-gdb
+package: clean vendor build
+	@mkdir -p $(PACKAGE_DIR)/$(TARGET)
+	@cp -a $(BINDIR)/*gdb$(EXT) $(PACKAGE_DIR)/$(TARGET)
+	@cp -r $(ROOT_SRCDIR)/conf.d $(ROOT_SRCDIR)/scripts $(PACKAGE_DIR)/$(TARGET)
+	cd $(PACKAGE_DIR) && zip -r $(ROOT_SRCDIR)/$(PACKAGE_ZIPFILE) ./$(TARGET)
 
 .PHONY: package-all
 package-all:
 	@echo "# Build linux amd64..."
 	GOOS=linux GOARCH=amd64 RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile package
 	@echo "# Build windows amd64..."
-#	GOOS=windows GOARCH=amd64 RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile package
-	@echo " WARNING: build on Windows not supported for now."
+	GOOS=windows GOARCH=amd64 RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile package
 	@echo "# Build darwin amd64..."
 	GOOS=darwin GOARCH=amd64 RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile package
 	make -f $(ROOT_SRCDIR)/Makefile clean
