@@ -106,6 +106,15 @@ package-all:
 	GOOS=darwin GOARCH=amd64 RELEASE=1 make -f $(ROOT_SRCDIR)/Makefile package
 	make -f $(ROOT_SRCDIR)/Makefile clean
 
+.PHONY: install
+install:
+	@test -e $(LOCAL_BINDIR)/$(TARGET)$(EXT) || { echo "Please execute first: make all\n"; exit 1; }
+	export DESTDIR=$(DESTDIR) && $(ROOT_SRCDIR)/scripts/install.sh
+
+.PHONY: uninstall
+uninstall:
+	export DESTDIR=$(DESTDIR) && $(ROOT_SRCDIR)/scripts/install.sh uninstall
+
 vendor: tools/glide glide.yaml
 	./tools/glide install --strip-vendor
 
@@ -122,9 +131,11 @@ tools/glide:
 help:
 	@echo "Main supported rules:"
 	@echo "  all               (default)"
+	@echo "  build"
 	@echo "  release"
 	@echo "  clean"
 	@echo "  package"
+	@echo "  install / uninstall"
 	@echo "  distclean"
 	@echo ""
 	@echo "Influential make variables:"
