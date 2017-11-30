@@ -360,7 +360,7 @@ endloop:
 				sc := bufio.NewScanner(reader)
 				for sc.Scan() {
 					data := sc.Text()
-					iosk.Emit(apiv1.ExecInferiorInEvent, data+"\n")
+					iosk.Emit(xaapiv1.ExecInferiorInEvent, data+"\n")
 					log.Debugf("Inferior IN: <%v>", data)
 				}
 				if sc.Err() != nil {

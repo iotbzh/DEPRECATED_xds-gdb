@@ -3,17 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/iotbzh/xds-agent/lib/xaapiv1"
 	common "github.com/iotbzh/xds-common/golib"
-	"github.com/iotbzh/xds-server/lib/apiv1"
-	"github.com/iotbzh/xds-server/lib/crosssdk"
-	"github.com/iotbzh/xds-server/lib/folder"
-	sio_client "github.com/zhouhui8915/go-socket.io-client"
+	sio_client "github.com/sebd71/go-socket.io-client"
 )
 
 // GdbXds -
@@ -28,11 +27,12 @@ type GdbXds struct {
 	rPath   string
 	listPrj bool
 	cmdID   string
+	xGdbPid string
 
 	httpCli *common.HTTPClient
 	ioSock  *sio_client.Client
 
-	folders []folder.FolderConfig
+	projects []xaapiv1.ProjectConfig
 
 	// callbacks
 	cbOnError      func(error)
@@ -51,6 +51,7 @@ func NewGdbXds(log *logrus.Logger, args []string, env []string) *GdbXds {
 		eenv:    env,
 		httpCli: nil,
 		ioSock:  nil,
+		xGdbPid: strconv.Itoa(os.Getpid()),
 	}
 }
 
@@ -89,25 +90,45 @@ func (g *GdbXds) Init() (int, error) {
 	g.log.Infoln("Connect HTTP client on ", baseURL)
 	conf := common.HTTPClientConfig{
 		URLPrefix:           "/api/v1",
-		HeaderClientKeyName: "XDS-SID",
+		HeaderClientKeyName: "Xds-Agent-Sid",
 		CsrfDisable:         true,
+		LogOut:              g.log.Out,
+		LogLevel:            common.HTTPLogLevelWarning,
 	}
 	c, err := common.HTTPNewClient(baseURL, conf)
 	if err != nil {
-		return int(syscallEBADE), err
+		errmsg := err.Error()
+		if m, err := regexp.MatchString("Get http.?://", errmsg); m && err == nil {
+			i := strings.LastIndex(errmsg, ":")
+			errmsg = "Cannot connection to " + baseURL + errmsg[i:]
+		}
+		return int(syscallEBADE), fmt.Errorf(errmsg)
 	}
 	g.httpCli = c
+	g.httpCli.SetLogLevel(g.log.Level.String())
+	g.log.Infoln("HTTP session ID:", g.httpCli.GetClientID())
 
-	// First call to check that xds-server is alive
-	var data []byte
-	if err := c.HTTPGet("/folders", &data); err != nil {
+	// First call to check that xds-agent and server are alive
+	ver := xaapiv1.XDSVersion{}
+	if err := g.httpCli.Get("/version", &ver); err != nil {
 		return int(syscallEBADE), err
 	}
-	g.log.Infof("Result of /folders: %v", string(data[:]))
-	g.folders = []folder.FolderConfig{}
-	errMar := json.Unmarshal(data, &g.folders)
+	g.log.Infoln("XDS agent & server version:", ver)
+
+	// SEB Check that server is connected
+	// FIXME: add multi-servers support
+
+	// Get XDS projects list
+	var data []byte
+	if err := g.httpCli.HTTPGet("/projects", &data); err != nil {
+		return int(syscallEBADE), err
+	}
+
+	g.log.Infof("Result of /projects: %v", string(data[:]))
+	g.projects = []xaapiv1.ProjectConfig{}
+	errMar := json.Unmarshal(data, &g.projects)
 	if errMar != nil {
-		g.log.Errorf("Cannot decode folders configuration: %s", errMar.Error())
+		g.log.Errorf("Cannot decode projects configuration: %s", errMar.Error())
 	}
 
 	// Check mandatory args
@@ -122,7 +143,7 @@ func (g *GdbXds) Init() (int, error) {
 		Transport: "websocket",
 		Header:    make(map[string][]string),
 	}
-	opts.Header["XDS-SID"] = []string{c.GetClientID()}
+	opts.Header["XDS-AGENT-SID"] = []string{c.GetClientID()}
 
 	iosk, err := sio_client.NewClient(baseURL, opts)
 	if err != nil {
@@ -143,19 +164,19 @@ func (g *GdbXds) Init() (int, error) {
 		}
 	})
 
-	iosk.On(apiv1.ExecOutEvent, func(ev apiv1.ExecOutMsg) {
+	iosk.On(xaapiv1.ExecOutEvent, func(ev xaapiv1.ExecOutMsg) {
 		if g.cbRead != nil {
 			g.cbRead(ev.Timestamp, ev.Stdout, ev.Stderr)
 		}
 	})
 
-	iosk.On(apiv1.ExecInferiorOutEvent, func(ev apiv1.ExecOutMsg) {
+	iosk.On(xaapiv1.ExecInferiorOutEvent, func(ev xaapiv1.ExecOutMsg) {
 		if g.cbInferiorRead != nil {
 			g.cbInferiorRead(ev.Timestamp, ev.Stdout, ev.Stderr)
 		}
 	})
 
-	iosk.On(apiv1.ExecExitEvent, func(ev apiv1.ExecExitMsg) {
+	iosk.On(xaapiv1.ExecExitEvent, func(ev xaapiv1.ExecExitMsg) {
 		if g.cbOnExit != nil {
 			g.cbOnExit(ev.Code, ev.Error)
 		}
@@ -164,6 +185,7 @@ func (g *GdbXds) Init() (int, error) {
 	return 0, nil
 }
 
+// Close frees allocated objects and close opened connections
 func (g *GdbXds) Close() error {
 	g.cbOnDisconnect = nil
 	g.cbOnError = nil
@@ -177,23 +199,23 @@ func (g *GdbXds) Close() error {
 
 // Start sends a request to start remotely gdb within xds-server
 func (g *GdbXds) Start(inferiorTTY bool) (int, error) {
-	var body []byte
 	var err error
-	var folder *folder.FolderConfig
+	var project *xaapiv1.ProjectConfig
 
-	// Retrieve the folder definition
-	for _, f := range g.folders {
-		if f.ID == g.prjID {
-			folder = &f
+	// Retrieve the project definition
+	for _, f := range g.projects {
+		// check as prefix to support short/partial id name
+		if strings.HasPrefix(f.ID, g.prjID) {
+			project = &f
 			break
 		}
 	}
 
 	// Auto setup rPath if needed
-	if g.rPath == "" && folder != nil {
+	if g.rPath == "" && project != nil {
 		cwd, err := os.Getwd()
 		if err == nil {
-			fldRp := folder.ClientPath
+			fldRp := project.ClientPath
 			if !strings.HasPrefix(fldRp, "/") {
 				fldRp = "/" + fldRp
 			}
@@ -209,7 +231,7 @@ func (g *GdbXds) Start(inferiorTTY bool) (int, error) {
 	// except if XDS_GDBSERVER_OUTPUT_NOFIX is defined
 	_, gdbserverNoFix := os.LookupEnv("XDS_GDBSERVER_OUTPUT_NOFIX")
 
-	args := apiv1.ExecArgs{
+	args := xaapiv1.ExecArgs{
 		ID:              g.prjID,
 		SdkID:           g.sdkID,
 		Cmd:             g.ccmd,
@@ -220,24 +242,17 @@ func (g *GdbXds) Start(inferiorTTY bool) (int, error) {
 		TTYGdbserverFix: !gdbserverNoFix,
 		CmdTimeout:      -1, // no timeout, end when stdin close or command exited normally
 	}
-	body, err = json.Marshal(args)
-	if err != nil {
-		return int(syscallEBADE), err
-	}
 
-	g.log.Infof("POST %s/exec %v", g.uri, string(body))
-	var res *http.Response
-	var found bool
-	res, err = g.httpCli.HTTPPostWithRes("/exec", string(body))
+	g.log.Infof("POST %s/exec %v", g.uri, args)
+	res := xaapiv1.ExecResult{}
+	err = g.httpCli.Post("/exec", args, &res)
 	if err != nil {
 		return int(syscall.EAGAIN), err
 	}
-	dRes := make(map[string]interface{})
-	json.Unmarshal(g.httpCli.ResponseToBArray(res), &dRes)
-	if _, found = dRes["cmdID"]; !found {
-		return int(syscallEBADE), err
+	if res.CmdID == "" {
+		return int(syscallEBADE), fmt.Errorf("null CmdID")
 	}
-	g.cmdID = dRes["cmdID"].(string)
+	g.cmdID = res.CmdID
 
 	return 0, nil
 }
@@ -284,7 +299,7 @@ func (g *GdbXds) InferiorRead(f func(timestamp, stdout, stderr string)) {
 
 // Write writes message/string into gdb stdin
 func (g *GdbXds) Write(args ...interface{}) error {
-	return g.ioSock.Emit(apiv1.ExecInEvent, args...)
+	return g.ioSock.Emit(xaapiv1.ExecInEvent, args...)
 }
 
 // SendSignal is used to send a signal to remote process/gdb
@@ -293,26 +308,22 @@ func (g *GdbXds) SendSignal(sig os.Signal) error {
 		return fmt.Errorf("cmdID not set")
 	}
 
-	var body []byte
-	body, err := json.Marshal(apiv1.ExecSignalArgs{
+	sigArg := xaapiv1.ExecSignalArgs{
 		CmdID:  g.cmdID,
 		Signal: sig.String(),
-	})
-	if err != nil {
-		g.log.Errorf(err.Error())
 	}
-	g.log.Debugf("POST /signal %s", string(body))
-	return g.httpCli.HTTPPost("/signal", string(body))
+	g.log.Debugf("POST /signal %v", sigArg)
+	return g.httpCli.Post("/signal", sigArg, nil)
 }
 
 //***** Private functions *****
 
 func (g *GdbXds) printProjectsList() (int, error) {
 	msg := ""
-	if len(g.folders) > 0 {
+	if len(g.projects) > 0 {
 		msg += "List of existing projects (use: export XDS_PROJECT_ID=<< ID >>): \n"
 		msg += "  ID\t\t\t\t | Label"
-		for _, f := range g.folders {
+		for _, f := range g.projects {
 			msg += fmt.Sprintf("\n  %s\t | %s", f.ID, f.Label)
 			if f.DefaultSdk != "" {
 				msg += fmt.Sprintf("\t(default SDK: %s)", f.DefaultSdk)
@@ -321,27 +332,22 @@ func (g *GdbXds) printProjectsList() (int, error) {
 		msg += "\n"
 	}
 
-	var data []byte
-	if err := g.httpCli.HTTPGet("/sdks", &data); err != nil {
+	// FIXME : support multiple servers
+	sdks := []xaapiv1.SDK{}
+	if err := g.httpCli.Get("/servers/0/sdks", &sdks); err != nil {
 		return int(syscallEBADE), err
 	}
-	g.log.Infof("Result of /sdks: %v", string(data[:]))
-
-	sdks := []crosssdk.SDK{}
-	errMar := json.Unmarshal(data, &sdks)
-	if errMar == nil {
-		msg += "\nList of installed cross SDKs (use: export XDS_SDK_ID=<< ID >>): \n"
-		msg += "  ID\t\t\t\t\t | NAME\n"
-		for _, s := range sdks {
-			msg += fmt.Sprintf("  %s\t | %s\n", s.ID, s.Name)
-		}
+	msg += "\nList of installed cross SDKs (use: export XDS_SDK_ID=<< ID >>): \n"
+	msg += "  ID\t\t\t\t\t | NAME\n"
+	for _, s := range sdks {
+		msg += fmt.Sprintf("  %s\t | %s\n", s.ID, s.Name)
 	}
 
-	if len(g.folders) > 0 && len(sdks) > 0 {
+	if len(g.projects) > 0 && len(sdks) > 0 {
 		msg += fmt.Sprintf("\n")
 		msg += fmt.Sprintf("For example: \n")
 		msg += fmt.Sprintf("  XDS_PROJECT_ID=%q XDS_SDK_ID=%q  %s -x myGdbConf.ini\n",
-			g.folders[0].ID, sdks[0].ID, AppName)
+			g.projects[0].ID, sdks[0].ID, AppName)
 	}
 
 	return 0, fmt.Errorf(msg)

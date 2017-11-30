@@ -8,16 +8,14 @@ import:
   version: ^1.19.1
 - package: github.com/Sirupsen/logrus
   version: ^0.11.5
-- package: github.com/zhouhui8915/go-socket.io-client
-  version: master
-- package: github.com/iotbzh/xds-server
-  version: 6691c9f7c53d
+- package: github.com/sebd71/go-socket.io-client
+  version: 46defcb47f
+- package: github.com/iotbzh/xds-agent
+  version: 1.0.0-rc1
   subpackages:
-  - apiv1
-  - crosssdk
-  - xdsconfig
+  - lib/xaapiv1
 - package: github.com/iotbzh/xds-common
-  version: 363bac39b844
+  version: ^0.1.0
   subpackages:
   - golib/common
 - package: github.com/joho/godotenv
