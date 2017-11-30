@@ -14,6 +14,7 @@
     "cSpell.words": [
         "apiv", "iosk", "zhouhui", "ldflags", "socketio", "xdsconfig", "golib",
         "sebd", "ccmd", "aargs", "eenv", "gdbserver", "NOFIX", "XDSAGENT",
-        "xaapiv"
+        "xaapiv", "joho", "sdkid", "godotenv", "sigs", "igdb", "TCGETS",
+        "TCSETS", "tcgetattr", "tcsetattr"
     ]
 }
