@@ -35,17 +35,18 @@ import (
 
 // GdbXds - Implementation of IGDB used to interfacing XDS
 type GdbXds struct {
-	log     *logrus.Logger
-	ccmd    string
-	aargs   []string
-	eenv    []string
-	uri     string
-	prjID   string
-	sdkID   string
-	rPath   string
-	listPrj bool
-	cmdID   string
-	xGdbPid string
+	log       *logrus.Logger
+	ccmd      string
+	aargs     []string
+	eenv      []string
+	agentURL  string
+	serverURL string
+	prjID     string
+	sdkID     string
+	rPath     string
+	listPrj   bool
+	cmdID     string
+	xGdbPid   string
 
 	httpCli *common.HTTPClient
 	ioSock  *sio_client.Client
@@ -76,8 +77,10 @@ func NewGdbXds(log *logrus.Logger, args []string, env []string) *GdbXds {
 // SetConfig set additional config fields
 func (g *GdbXds) SetConfig(name string, value interface{}) error {
 	switch name {
-	case "uri":
-		g.uri = value.(string)
+	case "agentURL":
+		g.agentURL = value.(string)
+	case "serverURL":
+		g.serverURL = value.(string)
 	case "prjID":
 		g.prjID = value.(string)
 	case "sdkID":
@@ -99,9 +102,15 @@ func (g *GdbXds) Init() (int, error) {
 	g.cmdID = ""
 
 	// Define HTTP and WS url
-	baseURL := g.uri
-	if !strings.HasPrefix(g.uri, "http://") {
-		baseURL = "http://" + g.uri
+	baseURL := g.agentURL
+
+	// Allow to only set port number
+	if match, _ := regexp.MatchString("^([0-9]+)$", baseURL); match {
+		baseURL = "http://localhost:" + g.agentURL
+	}
+	// Add http prefix if missing
+	if baseURL != "" && !strings.HasPrefix(g.agentURL, "http://") {
+		baseURL = "http://" + g.agentURL
 	}
 
 	// Create HTTP client
@@ -133,8 +142,25 @@ func (g *GdbXds) Init() (int, error) {
 	}
 	g.log.Infoln("XDS agent & server version:", ver)
 
-	// SEB Check that server is connected
+	// Get current config and update connection to server when needed
+	xdsConf := xaapiv1.APIConfig{}
+	if err := g.httpCli.Get("/config", &xdsConf); err != nil {
+		return int(syscallEBADE), err
+	}
 	// FIXME: add multi-servers support
+	idx := 0
+	svrCfg := xdsConf.Servers[idx]
+	if g.serverURL != "" && (svrCfg.URL != g.serverURL || !svrCfg.Connected) {
+		svrCfg.URL = g.serverURL
+		svrCfg.ConnRetry = 10
+		newCfg := xaapiv1.APIConfig{}
+		if err := g.httpCli.Post("/config", xdsConf, &newCfg); err != nil {
+			return int(syscallEBADE), err
+		}
+
+	} else if !svrCfg.Connected {
+		return int(syscallEBADE), fmt.Errorf("XDS server not connected (url=%s)", svrCfg.URL)
+	}
 
 	// Get XDS projects list
 	var data []byte
@@ -182,9 +208,29 @@ func (g *GdbXds) Init() (int, error) {
 		}
 	})
 
+	// SEB gdbPid := ""
 	iosk.On(xaapiv1.ExecOutEvent, func(ev xaapiv1.ExecOutMsg) {
 		if g.cbRead != nil {
 			g.cbRead(ev.Timestamp, ev.Stdout, ev.Stderr)
+			/*
+				stdout := ev.Stdout
+				// SEB
+				//New Thread 15139
+				if strings.Contains(stdout, "pid = ") {
+					re := regexp.MustCompile("pid = ([0-9]+)")
+					if res := re.FindAllStringSubmatch(stdout, -1); len(res) > 0 {
+						gdbPid = res[0][1]
+					}
+					g.log.Errorf("SEB FOUND THREAD in '%s' => gdbPid=%s", stdout, gdbPid)
+				}
+				if gdbPid != "" && g.xGdbPid != "" && strings.Contains(stdout, gdbPid) {
+					g.log.Errorf("SEB THREAD REPLACE 1 stdout=%s", stdout)
+					stdout = strings.Replace(stdout, gdbPid, g.xGdbPid, -1)
+					g.log.Errorf("SEB THREAD REPLACE 2 stdout=%s", stdout)
+				}
+
+				g.cbRead(ev.Timestamp, stdout, ev.Stderr)
+			*/
 		}
 	})
 
@@ -261,7 +307,7 @@ func (g *GdbXds) Start(inferiorTTY bool) (int, error) {
 		CmdTimeout:      -1, // no timeout, end when stdin close or command exited normally
 	}
 
-	g.log.Infof("POST %s/exec %v", g.uri, args)
+	g.log.Infof("POST %s/exec %v", g.agentURL, args)
 	res := xaapiv1.ExecResult{}
 	err = g.httpCli.Post("/exec", args, &res)
 	if err != nil {

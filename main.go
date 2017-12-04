@@ -90,7 +90,8 @@ func exitError(code syscall.Errno, f string, a ...interface{}) {
 
 // main
 func main() {
-	var uri, prjID, rPath, logLevel, logFile, sdkid, confFile, gdbNative string
+	var agentURL, serverURL string
+	var prjID, rPath, logLevel, logFile, sdkid, confFile, gdbNative string
 	var listProject bool
 	var err error
 
@@ -106,7 +107,7 @@ func main() {
 	log.Out = fdL
 	log.Level = logrus.DebugLevel
 
-	uri = "localhost:8000"
+	agentURL = "localhost:8000"
 	logLevel = defaultLogLevel
 
 	// Create a new App instance
@@ -166,9 +167,14 @@ func main() {
 			Destination: &sdkid,
 		},
 		EnvVar{
+			Name:        "XDS_AGENT_URL",
+			Usage:       "local XDS agent url",
+			Destination: &agentURL,
+		},
+		EnvVar{
 			Name:        "XDS_SERVER_URL",
-			Usage:       "remote XDS server url",
-			Destination: &uri,
+			Usage:       "overwrite remote XDS server url (default value set in xds-agent-config.json file)",
+			Destination: &serverURL,
 		},
 	}
 
@@ -295,7 +301,8 @@ endloop:
 			gdb = NewGdbNative(log, gdbArgs, env)
 		} else {
 			gdb = NewGdbXds(log, gdbArgs, env)
-			gdb.SetConfig("uri", uri)
+			gdb.SetConfig("agentURL", agentURL)
+			gdb.SetConfig("serverURL", serverURL)
 			gdb.SetConfig("prjID", prjID)
 			gdb.SetConfig("sdkID", sdkid)
 			gdb.SetConfig("rPath", rPath)
@@ -574,9 +581,9 @@ func loadConfigEnvFile(confFile, gdbCmdFile string) (map[string]string, string, 
   All commented lines (#) in gdb command file that start with ':XDS-ENV:' prefix
   will be considered as XDS env commands. For example the 3 syntaxes below
   are supported:
-  # :XDS-ENV: XDS_PROJECT_ID=IW7B4EE-DBY4Z74_myProject
-  #:XDS-ENV:XDS_SDK_ID=poky-agl_aarch64_3.99.1+snapshot
-  # :XDS-ENV:  export XDS_SERVER_URL=localhost:8800
+  # :XDS-ENV: XDS_PROJECT_ID=4021617e-ced0-11e7-acd2-3c970e49ad9b
+  #:XDS-ENV:XDS_SDK_ID=06c0e95a-e215-3a5a-b373-f677c0dabd3b
+  # :XDS-ENV:  export XDS_AGENT_URL=localhost:8800
 */
 func extractEnvFromCmdFile(cmdFile string) (string, error) {
 	if !common.Exists(cmdFile) {
