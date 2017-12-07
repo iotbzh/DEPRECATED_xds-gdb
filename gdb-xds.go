@@ -120,14 +120,22 @@ func (g *GdbXds) Init() (int, error) {
 		HeaderClientKeyName: "Xds-Agent-Sid",
 		CsrfDisable:         true,
 		LogOut:              g.log.Out,
-		LogLevel:            common.HTTPLogLevelWarning,
+		LogPrefix:           "XDSAGENT: ",
+		LogLevel:            common.HTTPLogLevelDebug,
 	}
 	c, err := common.HTTPNewClient(baseURL, conf)
 	if err != nil {
 		errmsg := err.Error()
-		if m, err := regexp.MatchString("Get http.?://", errmsg); m && err == nil {
+		m, err := regexp.MatchString("Get http.?://", errmsg)
+		if (m && err == nil) || strings.Contains(errmsg, "Failed to get device ID") {
 			i := strings.LastIndex(errmsg, ":")
-			errmsg = "Cannot connection to " + baseURL + errmsg[i:]
+			newErr := "Cannot connection to " + baseURL
+			if i > 0 {
+				newErr += " (" + strings.TrimSpace(errmsg[i+1:]) + ")"
+			} else {
+				newErr += " (" + strings.TrimSpace(errmsg) + ")"
+			}
+			errmsg = newErr
 		}
 		return int(syscallEBADE), fmt.Errorf(errmsg)
 	}
