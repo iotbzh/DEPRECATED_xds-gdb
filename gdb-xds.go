@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/iotbzh/xds-agent/lib/xaapiv1"
@@ -391,17 +392,15 @@ func (g *GdbXds) SendSignal(sig os.Signal) error {
 //***** Private functions *****
 
 func (g *GdbXds) printProjectsList() (int, error) {
+	writer := new(tabwriter.Writer)
+	writer.Init(os.Stdout, 0, 8, 0, '\t', 0)
 	msg := ""
 	if len(g.projects) > 0 {
-		msg += "List of existing projects (use: export XDS_PROJECT_ID=<< ID >>): \n"
-		msg += "  ID\t\t\t\t | Label"
+		fmt.Fprintln(writer, "List of existing projects (use: export XDS_PROJECT_ID=<< ID >>):")
+		fmt.Fprintln(writer, "ID \t Label")
 		for _, f := range g.projects {
-			msg += fmt.Sprintf("\n  %s\t | %s", f.ID, f.Label)
-			if f.DefaultSdk != "" {
-				msg += fmt.Sprintf("\t(default SDK: %s)", f.DefaultSdk)
-			}
+			fmt.Fprintf(writer, " %s \t  %s\n", f.ID, f.Label)
 		}
-		msg += "\n"
 	}
 
 	// FIXME : support multiple servers
@@ -409,18 +408,21 @@ func (g *GdbXds) printProjectsList() (int, error) {
 	if err := g.httpCli.Get("/servers/0/sdks", &sdks); err != nil {
 		return int(syscallEBADE), err
 	}
-	msg += "\nList of installed cross SDKs (use: export XDS_SDK_ID=<< ID >>): \n"
-	msg += "  ID\t\t\t\t\t | NAME\n"
+	fmt.Fprintln(writer, "\nList of installed cross SDKs (use: export XDS_SDK_ID=<< ID >>):")
+	fmt.Fprintln(writer, "ID \t Name")
 	for _, s := range sdks {
-		msg += fmt.Sprintf("  %s\t | %s\n", s.ID, s.Name)
+		fmt.Fprintf(writer, " %s \t  %s\n", s.ID, s.Name)
 	}
 
 	if len(g.projects) > 0 && len(sdks) > 0 {
-		msg += fmt.Sprintf("\n")
-		msg += fmt.Sprintf("For example: \n")
-		msg += fmt.Sprintf("  XDS_PROJECT_ID=%q XDS_SDK_ID=%q  %s -x myGdbConf.ini\n",
-			g.projects[0].ID, sdks[0].ID, AppName)
+		fmt.Fprintln(writer, "")
+		fmt.Fprintln(writer, "For example: ")
+		fmt.Fprintf(writer, "  XDS_PROJECT_ID=%s XDS_SDK_ID=%s  %s -x myGdbConf.ini\n",
+			g.projects[0].ID[:8], sdks[0].ID[:8], AppName)
 	}
+	fmt.Fprintln(writer, "")
+	fmt.Fprintln(writer, "Or define settings within gdb configuration file (see help and :XDS-ENV: tag)")
+	writer.Flush()
 
 	return 0, fmt.Errorf(msg)
 }
