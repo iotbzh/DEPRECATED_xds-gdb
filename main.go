@@ -107,7 +107,7 @@ func main() {
 	log.Out = fdL
 	log.Level = logrus.DebugLevel
 
-	agentURL = "localhost:8000"
+	agentURL = "localhost:8800"
 	logLevel = defaultLogLevel
 
 	// Create a new App instance
