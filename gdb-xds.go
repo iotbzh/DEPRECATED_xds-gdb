@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -77,17 +78,21 @@ func NewGdbXds(log *logrus.Logger, args []string, env []string) *GdbXds {
 
 // SetConfig set additional config fields
 func (g *GdbXds) SetConfig(name string, value interface{}) error {
+	var val string
+	if name != "listProject" {
+		val = strings.TrimSpace(value.(string))
+	}
 	switch name {
 	case "agentURL":
-		g.agentURL = value.(string)
+		g.agentURL = val
 	case "serverURL":
-		g.serverURL = value.(string)
+		g.serverURL = val
 	case "prjID":
-		g.prjID = value.(string)
+		g.prjID = val
 	case "sdkID":
-		g.sdkID = value.(string)
+		g.sdkID = val
 	case "rPath":
-		g.rPath = value.(string)
+		g.rPath = val
 	case "listProject":
 		g.listPrj = value.(bool)
 	default:
@@ -441,8 +446,13 @@ func (g *GdbXds) printProjectsList() (int, error) {
 	if len(g.projects) > 0 && len(sdks) > 0 {
 		fmt.Fprintln(writer, "")
 		fmt.Fprintln(writer, "For example: ")
-		fmt.Fprintf(writer, "  XDS_PROJECT_ID=%s XDS_SDK_ID=%s  %s -x myGdbConf.ini\n",
-			g.projects[0].ID[:8], sdks[0].ID[:8], AppName)
+		if runtime.GOOS == "windows" {
+			fmt.Fprintf(writer, "  SET XDS_PROJECT_ID=%s && SET XDS_SDK_ID=%s &&  %s -x myGdbConf.ini\n",
+				g.projects[0].ID[:8], sdks[0].ID[:8], AppName)
+		} else {
+			fmt.Fprintf(writer, "  XDS_PROJECT_ID=%s XDS_SDK_ID=%s  %s -x myGdbConf.ini\n",
+				g.projects[0].ID[:8], sdks[0].ID[:8], AppName)
+		}
 	}
 	fmt.Fprintln(writer, "")
 	fmt.Fprintln(writer, "Or define settings within gdb configuration file (see help and :XDS-ENV: tag)")

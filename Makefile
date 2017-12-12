@@ -125,7 +125,9 @@ release:
 package: clean vendor build
 	@mkdir -p $(PACKAGE_DIR)/$(TARGET)
 	@cp -a $(LOCAL_BINDIR)/*gdb$(EXT) $(PACKAGE_DIR)/$(TARGET)
+ifneq ($(GOOS), windows)
 	@cp -r $(ROOT_SRCDIR)/conf.d $(ROOT_SRCDIR)/scripts $(PACKAGE_DIR)/$(TARGET)
+endif
 	cd $(PACKAGE_DIR) && zip -r $(ROOT_SRCDIR)/$(PACKAGE_ZIPFILE) ./$(TARGET)
 
 .PHONY: package-all

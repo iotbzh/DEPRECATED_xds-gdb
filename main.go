@@ -58,7 +58,7 @@ var AppSubVersion = "unknown-dev"
 
 // Create logger
 var log = logrus.New()
-var logFileInitial = "/tmp/xds-gdb.log"
+var logFileInitial = path.Join(os.TempDir(), "xds-gdb.log")
 
 // Application details
 const (
@@ -100,12 +100,13 @@ func main() {
 	logFile = logFileInitial
 	fdL, err := os.OpenFile(logFileInitial, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
-		msgErr := fmt.Sprintf("Cannot create log file %s", logFileInitial)
-		exitError(syscall.EPERM, msgErr)
+		fmt.Printf("WARNING: Cannot create initial log file %s\n", logFileInitial)
+		log.Level = logrus.WarnLevel
+	} else {
+		log.Out = fdL
+		log.Level = logrus.DebugLevel
 	}
 	log.Formatter = &logrus.TextFormatter{}
-	log.Out = fdL
-	log.Level = logrus.DebugLevel
 
 	agentURL = "localhost:8800"
 	logLevel = defaultLogLevel
@@ -356,8 +357,14 @@ endloop:
 				log.Debugf("Recv OUT: <%s>", stdout)
 			}
 			if stderr != "" {
-				fmt.Fprintf(os.Stderr, "%s", stderr)
-				log.Debugf("Recv ERR: <%s>", stderr)
+				// Filter-out ugly message (python error when cross gdb exited)
+				if !strings.Contains(stderr, "readline.write_history_file") &&
+					!(strings.Contains(stderr, "Traceback") && strings.Contains(stderr, "__exithandler")) {
+					fmt.Fprintf(os.Stderr, "%s", stderr)
+					log.Debugf("Recv ERR: <%s>", stderr)
+				} else {
+					log.Debugf("Recv ERR (FILTERED OUT): <%s>", stderr)
+				}
 			}
 
 			// Correctly report error about init file
