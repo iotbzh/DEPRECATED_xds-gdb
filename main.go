@@ -340,7 +340,13 @@ endloop:
 		})
 
 		gdb.OnDisconnect(func(err error) {
-			fmt.Println("Disconnection: ", err.Error())
+			errMsg := "\nXDS-Agent disconnected"
+			if err != nil {
+				fmt.Printf("%s: %v\n", errMsg, err.Error())
+			} else {
+				fmt.Println(errMsg)
+			}
+
 			exitChan <- exitResult{err, int(syscall.ESHUTDOWN)}
 		})
 
@@ -461,8 +467,8 @@ endloop:
 						time.Sleep(time.Millisecond * 200)
 					}
 
-					gdb.Write(command + "\n")
 					log.Debugf("Send: <%v>", command)
+					gdb.Write(command + "\n")
 				}
 				log.Infof("Stdin scanner exit, close stdin (err=%v)", sc.Err())
 

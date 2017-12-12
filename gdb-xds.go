@@ -255,6 +255,25 @@ func (g *GdbXds) Init() (int, error) {
 		}
 	})
 
+	// Monitor XDS server configuration changes (and specifically connected status)
+	iosk.On(xaapiv1.EVTServerConfig, func(ev xaapiv1.EventMsg) {
+		svrCfg, err := ev.DecodeServerCfg()
+		if err == nil && !svrCfg.Connected {
+			// TODO: should wait that server will be connected back
+			if g.cbOnExit != nil {
+				g.cbOnExit(-1, fmt.Errorf("XDS Server disconnected"))
+			} else {
+				fmt.Printf("XDS Server disconnected")
+				os.Exit(-1)
+			}
+		}
+	})
+
+	args := xaapiv1.EventRegisterArgs{Name: xaapiv1.EVTServerConfig}
+	if err := g.httpCli.Post("/events/register", args, nil); err != nil {
+		return 0, err
+	}
+
 	return 0, nil
 }
 
@@ -303,6 +322,11 @@ func (g *GdbXds) Start(inferiorTTY bool) (int, error) {
 	// Enable workaround about inferior output with gdbserver connection
 	// except if XDS_GDBSERVER_OUTPUT_NOFIX is defined
 	_, gdbserverNoFix := os.LookupEnv("XDS_GDBSERVER_OUTPUT_NOFIX")
+
+	// SDK ID must be set else $GDB cannot be resolved
+	if g.sdkID == "" {
+		return int(syscall.EINVAL), fmt.Errorf("sdkid must be set")
+	}
 
 	args := xaapiv1.ExecArgs{
 		ID:              g.prjID,
