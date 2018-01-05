@@ -1,5 +1,11 @@
 # xds-gdb
 
+>
+> **DEPRECATED: this repo has been moved to AGL Gerrit server**
+> **[https://gerrit.automotivelinux.org/gerrit/#/admin/projects/src/xds/xds-gdb](https://gerrit.automotivelinux.org/gerrit/#/admin/projects/src/xds/xds-gdb)**
+>
+
+
 `xds-gdb` is a wrapper on gdb debugger for X(cross) Development System.
 
 This tool allows you to debug an application built with an xds-server without
